@@ -732,7 +732,14 @@ fn resolve_git_path(file_cfg: &Option<FileConfig>) -> String {
 fn load_file_config() -> Option<FileConfig> {
     let path = config_file_path()?;
     let data = fs::read(&path).ok()?;
-    serde_json::from_slice::<FileConfig>(&data).ok()
+    parse_file_config_bytes(&data).ok()
+}
+
+fn parse_file_config_bytes(data: &[u8]) -> Result<FileConfig, serde_json::Error> {
+    // Windows PowerShell 5.1 writes UTF-8 with BOM by default for `Out-File -Encoding UTF8`.
+    // Tolerate BOM-prefixed config files so upgrades/installers don't brick config parsing.
+    let data = data.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(data);
+    serde_json::from_slice::<FileConfig>(data)
 }
 
 fn config_file_path() -> Option<PathBuf> {
@@ -824,8 +831,7 @@ pub fn load_file_config_public() -> Result<FileConfig, String> {
 
     let data = fs::read(&path).map_err(|e| format!("Failed to read config file: {}", e))?;
 
-    serde_json::from_slice::<FileConfig>(&data)
-        .map_err(|e| format!("Failed to parse config file: {}", e))
+    parse_file_config_bytes(&data).map_err(|e| format!("Failed to parse config file: {}", e))
 }
 
 /// Save the file config
@@ -1436,5 +1442,25 @@ mod tests {
             ),
         ];
         assert!(!config.is_allowed_repository_with_remotes(Some(&remotes)));
+    }
+
+    #[test]
+    fn test_parse_file_config_bytes_accepts_utf8_bom() {
+        let mut data = vec![0xEF, 0xBB, 0xBF];
+        data.extend_from_slice(br#"{"git_path":"C:\\Program Files\\Git\\cmd\\git.exe"}"#);
+
+        let parsed = parse_file_config_bytes(&data).expect("BOM-prefixed config should parse");
+        assert_eq!(
+            parsed.git_path.as_deref(),
+            Some(r"C:\Program Files\Git\cmd\git.exe")
+        );
+    }
+
+    #[test]
+    fn test_parse_file_config_bytes_without_bom_still_parses() {
+        let data = br#"{"git_path":"/usr/bin/git"}"#;
+
+        let parsed = parse_file_config_bytes(data).expect("regular config should parse");
+        assert_eq!(parsed.git_path.as_deref(), Some("/usr/bin/git"));
     }
 }

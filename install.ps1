@@ -510,7 +510,8 @@ try {
         $cfg = @{
             git_path = $stdGitPath
         } | ConvertTo-Json -Compress
-        $cfg | Out-File -FilePath $configJsonPath -Encoding UTF8 -Force
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($configJsonPath, $cfg, $utf8NoBom)
     }
 } catch {
     Write-Host "Warning: Failed to write config.json: $($_.Exception.Message)" -ForegroundColor Yellow

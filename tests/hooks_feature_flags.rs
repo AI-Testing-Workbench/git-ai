@@ -475,3 +475,39 @@ fn cli_config_unset_hooks_externally_managed() {
         }
     }
 }
+
+#[test]
+#[serial]
+fn cli_config_set_succeeds_with_utf8_bom_prefixed_config_file() {
+    let _mode = EnvVarGuard::set("GIT_AI_TEST_GIT_MODE", "wrapper");
+    let repo = TestRepo::new();
+
+    let test_home = repo.test_home_path();
+    let config_dir = test_home.join(".git-ai");
+    let config_path = config_dir.join("config.json");
+    fs::create_dir_all(&config_dir).expect("failed to create config directory");
+
+    let mut config_bytes = vec![0xEF, 0xBB, 0xBF];
+    config_bytes.extend_from_slice(br#"{"git_path":"C:\\Program Files\\Git\\cmd\\git.exe"}"#);
+    fs::write(&config_path, config_bytes).expect("failed to write BOM-prefixed config");
+
+    let home = test_home.to_string_lossy().to_string();
+    repo.git_ai_with_env(
+        &["config", "set", "feature_flags.git_hooks_enabled", "true"],
+        &[("HOME", &home), ("USERPROFILE", &home)],
+    )
+    .expect("config set should succeed for BOM-prefixed config");
+
+    let result = repo
+        .git_ai_with_env(
+            &["config", "feature_flags.git_hooks_enabled"],
+            &[("HOME", &home), ("USERPROFILE", &home)],
+        )
+        .expect("config get should succeed for BOM-prefixed config");
+
+    assert!(
+        result.contains("true"),
+        "config get should return true after set, got: {}",
+        result
+    );
+}
