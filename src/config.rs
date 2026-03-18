@@ -82,7 +82,7 @@ pub struct Config {
     api_key: Option<String>,
     quiet: bool,
     custom_attributes: HashMap<String, String>,
-    droid_cli_path: Option<String>,
+    git_ai_hooks: HashMap<String, Vec<String>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize)]
@@ -153,7 +153,7 @@ pub struct FileConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_attributes: Option<HashMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub droid_cli_path: Option<String>,
+    pub git_ai_hooks: Option<HashMap<String, Vec<String>>>,
 }
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
@@ -401,9 +401,14 @@ impl Config {
         &self.custom_attributes
     }
 
-    /// Returns the path to the droid CLI binary, if configured.
-    pub fn droid_cli_path(&self) -> Option<&str> {
-        self.droid_cli_path.as_deref()
+    /// Returns all configured git-ai hook commands.
+    pub fn git_ai_hooks(&self) -> &HashMap<String, Vec<String>> {
+        &self.git_ai_hooks
+    }
+
+    /// Returns configured shell commands for a specific hook.
+    pub fn git_ai_hook_commands(&self, hook_name: &str) -> Option<&Vec<String>> {
+        self.git_ai_hooks.get(hook_name)
     }
 
     /// Serialize the effective runtime config into pretty JSON.
@@ -638,9 +643,29 @@ fn build_config() -> Config {
     // Build custom attributes: file config as base, env var overrides
     let custom_attributes = build_custom_attributes(&file_cfg);
 
-    let droid_cli_path = file_cfg
+    let git_ai_hooks = file_cfg
         .as_ref()
-        .and_then(|c| c.droid_cli_path.clone());
+        .and_then(|c| c.git_ai_hooks.clone())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(hook_name, commands)| {
+            let hook_name = hook_name.trim().to_string();
+            if hook_name.is_empty() {
+                return None;
+            }
+
+            let commands: Vec<String> = commands
+                .into_iter()
+                .map(|command| command.trim().to_string())
+                .filter(|command| !command.is_empty())
+                .collect();
+            if commands.is_empty() {
+                return None;
+            }
+
+            Some((hook_name, commands))
+        })
+        .collect::<HashMap<String, Vec<String>>>();
 
     #[cfg(any(test, feature = "test-support"))]
     {
@@ -662,7 +687,7 @@ fn build_config() -> Config {
             api_key,
             quiet,
             custom_attributes: custom_attributes.clone(),
-            droid_cli_path: droid_cli_path.clone(),
+            git_ai_hooks: git_ai_hooks.clone(),
         };
         apply_test_config_patch(&mut config);
         config
@@ -687,7 +712,7 @@ fn build_config() -> Config {
         api_key,
         quiet,
         custom_attributes,
-        droid_cli_path,
+        git_ai_hooks,
     }
 }
 
@@ -1003,7 +1028,7 @@ mod tests {
             api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
-            droid_cli_path: None,
+            git_ai_hooks: HashMap::new(),
         }
     }
 
@@ -1112,7 +1137,7 @@ mod tests {
             api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
-            droid_cli_path: None,
+            git_ai_hooks: HashMap::new(),
         }
     }
 
@@ -1230,7 +1255,7 @@ mod tests {
             api_key: None,
             quiet: false,
             custom_attributes: HashMap::new(),
-            droid_cli_path: None,
+            git_ai_hooks: HashMap::new(),
         }
     }
 

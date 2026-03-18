@@ -205,8 +205,6 @@ pub fn post_commit(
 
     notes_add(repo, &commit_sha, &authorship_json)?;
 
-    crate::authorship::droid_push::push_notes_to_droid(repo, &commit_sha, &authorship_json);
-
     // Compute stats once (needed for both metrics and terminal output), unless preflight
     // estimate predicts this would be too expensive for the commit hook path.
     let mut stats: Option<crate::authorship::stats::CommitStats> = None;
