@@ -11,7 +11,7 @@ use crate::repos::test_repo::TestRepo;
 #[test]
 fn test_ci_handlers_module_exists() {
     // Basic smoke test to ensure the module compiles and links
-    assert!(true, "ci_handlers module compiled successfully");
+    // Smoke test: module compiles and links successfully
 }
 
 // ==============================================================================
@@ -102,12 +102,10 @@ fn test_ci_event_merge_structure() {
 #[test]
 fn test_ci_local_flag_parsing_structure() {
     // Test that flag parsing logic expectations are correct
-    let args = vec![
-        "--merge-commit-sha".to_string(),
+    let args = ["--merge-commit-sha".to_string(),
         "abc123".to_string(),
         "--base-ref".to_string(),
-        "main".to_string(),
-    ];
+        "main".to_string()];
 
     // Verify flag structure
     assert!(args.contains(&"--merge-commit-sha".to_string()));
@@ -117,12 +115,10 @@ fn test_ci_local_flag_parsing_structure() {
 #[test]
 fn test_ci_local_flag_values() {
     // Test flag value extraction logic
-    let args = vec![
-        "--head-ref".to_string(),
+    let args = ["--head-ref".to_string(),
         "feature-branch".to_string(),
         "--head-sha".to_string(),
-        "def456".to_string(),
-    ];
+        "def456".to_string()];
 
     // Find flag values
     let mut i = 0;
@@ -147,8 +143,8 @@ fn test_ci_local_flag_values() {
 
 #[test]
 fn test_no_cleanup_flag_detection() {
-    let args1 = vec!["run".to_string(), "--no-cleanup".to_string()];
-    let args2 = vec!["run".to_string()];
+    let args1 = ["run".to_string(), "--no-cleanup".to_string()];
+    let args2 = ["run".to_string()];
 
     let has_no_cleanup_1 = args1.iter().any(|a| a == "--no-cleanup");
     let has_no_cleanup_2 = args2.iter().any(|a| a == "--no-cleanup");
@@ -159,7 +155,7 @@ fn test_no_cleanup_flag_detection() {
 
 #[test]
 fn test_ci_missing_flag_value_detection() {
-    let args = vec!["--merge-commit-sha".to_string()];
+    let args = ["--merge-commit-sha".to_string()];
 
     // Simulate flag parser
     let mut i = 0;
@@ -180,13 +176,11 @@ fn test_ci_missing_flag_value_detection() {
 
 #[test]
 fn test_ci_required_flags_for_merge() {
-    let required_flags = vec![
-        "--merge-commit-sha",
+    let required_flags = ["--merge-commit-sha",
         "--base-ref",
         "--head-ref",
         "--head-sha",
-        "--base-sha",
-    ];
+        "--base-sha"];
 
     assert_eq!(required_flags.len(), 5);
     assert!(required_flags.contains(&"--merge-commit-sha"));
@@ -198,7 +192,7 @@ fn test_ci_required_flags_for_merge() {
 
 #[test]
 fn test_ci_optional_skip_fetch_flags_for_merge() {
-    let optional_flags = vec!["--skip-fetch-notes", "--skip-fetch-base", "--skip-fetch"];
+    let optional_flags = ["--skip-fetch-notes", "--skip-fetch-base", "--skip-fetch"];
 
     assert_eq!(optional_flags.len(), 3);
     assert!(optional_flags.contains(&"--skip-fetch-notes"));
@@ -217,18 +211,18 @@ fn test_ci_subcommand_classification() {
 
     // Test platform detection
     for platform in &valid_platforms {
-        assert!(valid_platforms.contains(&platform));
+        assert!(valid_platforms.contains(platform));
     }
 
     // Test action detection
     for action in &valid_actions {
-        assert!(valid_actions.contains(&action));
+        assert!(valid_actions.contains(action));
     }
 }
 
 #[test]
 fn test_ci_github_subcommands() {
-    let subcommands = vec!["run", "install"];
+    let subcommands = ["run", "install"];
 
     assert!(subcommands.contains(&"run"));
     assert!(subcommands.contains(&"install"));
@@ -237,7 +231,7 @@ fn test_ci_github_subcommands() {
 
 #[test]
 fn test_ci_gitlab_subcommands() {
-    let subcommands = vec!["run", "install"];
+    let subcommands = ["run", "install"];
 
     assert!(subcommands.contains(&"run"));
     assert!(subcommands.contains(&"install"));
@@ -246,7 +240,7 @@ fn test_ci_gitlab_subcommands() {
 
 #[test]
 fn test_ci_local_events() {
-    let events = vec!["merge"];
+    let events = ["merge"];
 
     assert!(events.contains(&"merge"));
     assert!(!events.contains(&"push"));
@@ -267,10 +261,8 @@ fn test_github_ci_env_detection() {
     // In actual GitHub Actions, it would be Some("true")
     if let Some(val) = github_actions {
         assert_eq!(val, "true");
-    } else {
-        // Not in GitHub Actions - this is the expected test case
-        assert!(true);
     }
+    // Otherwise not in GitHub Actions - expected in test environment
 }
 
 #[test]
@@ -284,10 +276,8 @@ fn test_gitlab_ci_env_detection() {
     // In actual GitLab CI, it would be Some("true")
     if let Some(val) = gitlab_ci {
         assert_eq!(val, "true");
-    } else {
-        // Not in GitLab CI - this is the expected test case
-        assert!(true);
     }
+    // Otherwise not in GitLab CI - expected in test environment
 }
 
 // ==============================================================================

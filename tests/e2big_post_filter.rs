@@ -418,12 +418,12 @@ fn test_diff_workdir_insertions_post_filter_equivalence() {
     // Modify 2 in working dir (don't commit)
     std::fs::write(
         repo.path().join(&filenames[0]),
-        format!("line1_0\nline2_0\n"),
+        "line1_0\nline2_0\n",
     )
     .unwrap();
     std::fs::write(
         repo.path().join(&filenames[1]),
-        format!("line1_1\nline2_1\n"),
+        "line1_1\nline2_1\n",
     )
     .unwrap();
 

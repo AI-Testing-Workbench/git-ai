@@ -11,7 +11,6 @@
 
 #[macro_use]
 mod repos;
-use repos::test_file::ExpectedLineExt;
 use repos::test_repo::TestRepo;
 
 use git_ai::error::GitAiError;

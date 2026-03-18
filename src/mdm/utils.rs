@@ -1081,7 +1081,7 @@ mod tests {
     "chat.useHooks": true
 }
 "#;
-        fs::write(&settings_path, &initial).unwrap();
+        fs::write(&settings_path, initial).unwrap();
 
         let result = update_vscode_chat_hook_settings(&settings_path, false).unwrap();
         assert!(result.is_none());
