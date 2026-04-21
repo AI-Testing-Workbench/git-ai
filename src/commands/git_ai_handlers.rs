@@ -615,6 +615,22 @@ fn handle_checkpoint(args: &[String]) {
                     }
                 }
             }
+            "testagent" => {
+                match TestAgentPreset.run(AgentCheckpointFlags {
+                    hook_input: hook_input.clone(),
+                }) {
+                    Ok(agent_run) => {
+                        if agent_run.repo_working_dir.is_some() {
+                            repository_working_dir = agent_run.repo_working_dir.clone().unwrap();
+                        }
+                        agent_run_result = Some(agent_run);
+                    }
+                    Err(e) => {
+                        eprintln!("TestAgent preset error: {}", e);
+                        std::process::exit(0);
+                    }
+                }
+            }
             "pi" => {
                 match PiPreset.run(AgentCheckpointFlags {
                     hook_input: hook_input.clone(),
