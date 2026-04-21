@@ -13,6 +13,7 @@ use crate::commands::checkpoint_agent::agent_presets::{
 use crate::commands::checkpoint_agent::agent_v1_preset::AgentV1Preset;
 use crate::commands::checkpoint_agent::amp_preset::AmpPreset;
 use crate::commands::checkpoint_agent::opencode_preset::OpenCodePreset;
+use crate::commands::checkpoint_agent::testagent_preset::TestAgentPreset;
 use crate::commands::checkpoint_agent::pi_preset::PiPreset;
 use crate::config;
 use crate::daemon::{

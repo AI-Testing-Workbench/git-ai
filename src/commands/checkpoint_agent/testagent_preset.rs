@@ -19,7 +19,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-pub struct OpenCodePreset;
+pub struct TestAgentPreset;
 
 /// Hook input from OpenCode plugin
 #[derive(Debug, Deserialize)]
@@ -153,7 +153,7 @@ struct OpenCodePartTime {
     end: Option<i64>,
 }
 
-impl AgentCheckpointPreset for OpenCodePreset {
+impl AgentCheckpointPreset for TestAgentPreset {
     fn run(&self, flags: AgentCheckpointFlags) -> Result<AgentRunResult, GitAiError> {
         let hook_input_json = flags.hook_input.ok_or_else(|| {
             GitAiError::PresetError("hook_input is required for OpenCode preset".to_string())
@@ -296,7 +296,7 @@ impl AgentCheckpointPreset for OpenCodePreset {
     }
 }
 
-impl OpenCodePreset {
+impl TestAgentPreset {
     fn extract_filepaths_from_tool_input(
         tool_input: Option<&serde_json::Value>,
         cwd: &str,
