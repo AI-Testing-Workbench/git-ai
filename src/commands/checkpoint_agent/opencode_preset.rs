@@ -205,7 +205,7 @@ impl AgentCheckpointPreset for OpenCodePreset {
             };
 
         let agent_id = AgentId {
-            tool: "opencode".to_string(),
+            tool: "TestAgent".to_string(),
             id: session_id.clone(),
             model: model.unwrap_or_else(|| "unknown".to_string()),
         };
