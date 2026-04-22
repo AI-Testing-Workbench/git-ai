@@ -1,0 +1,2 @@
+This is a test file to generate a committed event for the dashboard.
+The dashboard needs committed events to display statistics.
