@@ -10,6 +10,7 @@ import { Config } from "./utils/config";
 import { BlameLensManager, registerBlameLensCommands } from "./blame-lens-manager";
 import { initBinaryResolver } from "./utils/binary-path";
 import { KnownHumanCheckpointManager } from "./known-human-checkpoint-manager";
+import { ensureGitAiInstalled } from "./utils/install-helper";
 
 function getDistinctId(): string {
   try {
@@ -24,6 +25,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   // In dev mode, resolve git-ai binary via login shell (debug host has stripped PATH)
   initBinaryResolver(context.extensionMode);
+
+  // Ensure git-ai is installed (async, non-blocking)
+  // In production, this installs from VSCode extension bundle
+  // In development, this downloads from GitHub
+  ensureGitAiInstalled(context).catch((err) => {
+    console.error("[git-ai] Installation check failed:", err);
+  });
 
   const ideHostCfg = detectIDEHost();
 
