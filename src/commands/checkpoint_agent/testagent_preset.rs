@@ -450,9 +450,10 @@ impl TestAgentPreset {
             } else if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
                 Ok(PathBuf::from(local_app_data).join("testagent"))
             } else {
-                Err(GitAiError::Generic(
-                    "Neither APPDATA nor LOCALAPPDATA is set".to_string(),
-                ))
+                let home = dirs::home_dir().ok_or_else(|| {
+                    GitAiError::Generic("Could not determine home directory".to_string())
+                })?;
+                Ok(home.join(".local").join("share").join("testagent"))
             }
         }
 
