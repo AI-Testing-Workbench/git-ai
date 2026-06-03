@@ -10,7 +10,7 @@
     "url": "https://github.com/git-ai-project/git-ai"
   },
   "engines": {
-    "vscode": ">=1.99.3",
+    "vscode": ">=1.115.0",
     "node": ">=20.18.1"
   },
   "categories": [
