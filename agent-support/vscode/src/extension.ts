@@ -10,6 +10,7 @@ import { Config } from "./utils/config";
 import { BlameLensManager, registerBlameLensCommands } from "./blame-lens-manager";
 import { initBinaryResolver } from "./utils/binary-path";
 import { KnownHumanCheckpointManager } from "./known-human-checkpoint-manager";
+import { runOfflineInstallIfNeeded } from "./installer";
 
 function getDistinctId(): string {
   try {
@@ -24,6 +25,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   // In dev mode, resolve git-ai binary via login shell (debug host has stripped PATH)
   initBinaryResolver(context.extensionMode);
+
+  // Offline installation: copy bundled binary and configure PATH / hooks when
+  // git-ai is missing or out-of-date.  Runs asynchronously so it never blocks
+  // the rest of activation.
+  runOfflineInstallIfNeeded(context).catch((err) =>
+    console.error("[git-ai] offline installer error:", err)
+  );
 
   const ideHostCfg = detectIDEHost();
 
