@@ -18,7 +18,8 @@
  */
 
 import type { Plugin } from "@opencode-ai/plugin"
-import { dirname, isAbsolute, join } from "path"
+import { spawn } from "node:child_process"
+import { dirname, isAbsolute, join } from "node:path"
 
 // Absolute path to git-ai binary, replaced at install time by `git-ai install-hooks`
 const GIT_AI_BIN = "__GIT_AI_BINARY_PATH__"
@@ -139,14 +140,44 @@ const extractFilePaths = (args: unknown, cwd?: string): string[] => {
   return [...normalizedPaths]
 }
 
-export const GitAiPlugin: Plugin = async (ctx) => {
-  const { $ } = ctx
+// Run a process and return its stdout. Rejects if exit code is non-zero.
+const runProcess = (
+  command: string,
+  args: string[],
+  options?: { stdin?: string },
+): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    })
 
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (chunk: unknown) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on("data", (chunk: unknown) => {
+      stderr += String(chunk)
+    })
+    child.on("error", reject)
+    child.on("close", (code) => {
+      resolve({ exitCode: code ?? -1, stdout, stderr })
+    })
+
+    if (typeof options?.stdin === "string") {
+      child.stdin.write(options.stdin)
+    }
+    child.stdin.end()
+  })
+}
+
+export const GitAiPlugin: Plugin = async (_ctx) => {
   // Check if git-ai is installed
   let gitAiInstalled = false
   try {
-    await $`${GIT_AI_BIN} --version`.quiet()
-    gitAiInstalled = true
+    const result = await runProcess(GIT_AI_BIN, ["--version"])
+    gitAiInstalled = result.exitCode === 0
   } catch {
     // git-ai not installed, plugin will be a no-op
   }
@@ -164,10 +195,12 @@ export const GitAiPlugin: Plugin = async (ctx) => {
 
     for (const dir of candidateDirs) {
       try {
-        const result = await $`git -C ${dir} rev-parse --show-toplevel`.quiet()
-        const repoRoot = result.stdout.toString().trim()
-        if (repoRoot) {
-          return repoRoot
+        const result = await runProcess("git", ["-C", dir, "rev-parse", "--show-toplevel"])
+        if (result.exitCode === 0) {
+          const repoRoot = result.stdout.trim()
+          if (repoRoot) {
+            return repoRoot
+          }
         }
       } catch {
         // try next candidate
@@ -207,6 +240,18 @@ export const GitAiPlugin: Plugin = async (ctx) => {
     return undefined
   }
 
+  const runCheckpoint = async (hookInput: string, label: string): Promise<void> => {
+    try {
+      await runProcess(
+        GIT_AI_BIN,
+        ["checkpoint", "testagent", "--hook-input", "stdin"],
+        { stdin: hookInput },
+      )
+    } catch (error) {
+      console.error(`[git-ai] ${label}:`, String(error))
+    }
+  }
+
   return {
     "tool.execute.before": async (input, output) => {
       const toolInput = output.args
@@ -222,19 +267,15 @@ export const GitAiPlugin: Plugin = async (ctx) => {
 
         pendingCalls.set(input.callID, { repoDir, sessionID: input.sessionID, toolInput })
 
-        try {
-          const hookInput = JSON.stringify({
-            hook_event_name: "PreToolUse",
-            session_id: input.sessionID,
-            tool_use_id: input.callID,
-            cwd: repoDir,
-            tool_name: input.tool,
-            tool_input: toolInput,
-          })
-          await $`echo ${hookInput} | ${GIT_AI_BIN} checkpoint testagent --hook-input stdin`.quiet()
-        } catch (error) {
-          console.error("[git-ai] Failed to create human checkpoint:", String(error))
-        }
+        const hookInput = JSON.stringify({
+          hook_event_name: "PreToolUse",
+          session_id: input.sessionID,
+          tool_use_id: input.callID,
+          cwd: repoDir,
+          tool_name: input.tool,
+          tool_input: toolInput,
+        })
+        await runCheckpoint(hookInput, "Failed to create human checkpoint")
 
       } else if (isBashTool(input.tool)) {
         // Bash tool: no file paths in input; resolve repo from workdir or cwd
@@ -245,19 +286,15 @@ export const GitAiPlugin: Plugin = async (ctx) => {
 
         pendingCalls.set(input.callID, { repoDir, sessionID: input.sessionID, toolInput })
 
-        try {
-          const hookInput = JSON.stringify({
-            hook_event_name: "PreToolUse",
-            session_id: input.sessionID,
-            tool_use_id: input.callID,
-            cwd: repoDir,
-            tool_name: input.tool,
-            tool_input: toolInput,
-          })
-          await $`echo ${hookInput} | ${GIT_AI_BIN} checkpoint testagent --hook-input stdin`.quiet()
-        } catch (error) {
-          console.error("[git-ai] Failed to create human checkpoint:", String(error))
-        }
+        const hookInput = JSON.stringify({
+          hook_event_name: "PreToolUse",
+          session_id: input.sessionID,
+          tool_use_id: input.callID,
+          cwd: repoDir,
+          tool_name: input.tool,
+          tool_input: toolInput,
+        })
+        await runCheckpoint(hookInput, "Failed to create human checkpoint")
       }
     },
 
@@ -275,19 +312,15 @@ export const GitAiPlugin: Plugin = async (ctx) => {
 
       const { repoDir, sessionID, toolInput } = callInfo
 
-      try {
-        const hookInput = JSON.stringify({
-          hook_event_name: "PostToolUse",
-          session_id: sessionID,
-          tool_use_id: input.callID,
-          cwd: repoDir,
-          tool_name: input.tool,
-          tool_input: toolInput,
-        })
-        await $`echo ${hookInput} | ${GIT_AI_BIN} checkpoint testagent --hook-input stdin`.quiet()
-      } catch (error) {
-        console.error("[git-ai] Failed to create AI checkpoint:", String(error))
-      }
+      const hookInput = JSON.stringify({
+        hook_event_name: "PostToolUse",
+        session_id: sessionID,
+        tool_use_id: input.callID,
+        cwd: repoDir,
+        tool_name: input.tool,
+        tool_input: toolInput,
+      })
+      await runCheckpoint(hookInput, "Failed to create AI checkpoint")
     },
   }
 }
