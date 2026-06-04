@@ -445,16 +445,54 @@ impl TestAgentPreset {
 
         #[cfg(target_os = "windows")]
         {
-            if let Ok(app_data) = std::env::var("APPDATA") {
-                Ok(PathBuf::from(app_data).join("testagent"))
-            } else if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-                Ok(PathBuf::from(local_app_data).join("testagent"))
-            } else {
-                let home = dirs::home_dir().ok_or_else(|| {
-                    GitAiError::Generic("Could not determine home directory".to_string())
-                })?;
-                Ok(home.join(".local").join("share").join("testagent"))
+            let home = dirs::home_dir().ok_or_else(|| {
+                GitAiError::Generic("Could not determine home directory".to_string())
+            })?;
+
+            // Priority-ordered list of candidate directories for TestAgent data.
+            // TestAgent on Windows stores data under the XDG-style ~/.local/share/testagent
+            // path (mirroring Linux/macOS behaviour) rather than the Windows-conventional
+            // %APPDATA%\testagent location.  We probe all known locations so the correct
+            // one is found regardless of the version or configuration used.
+            let candidates: Vec<PathBuf> = {
+                let mut v = Vec::new();
+
+                // 1. XDG-style path used by TestAgent on Windows
+                v.push(home.join(".local").join("share").join("testagent"));
+
+                // 2. %LOCALAPPDATA%\testagent  (machine-local, non-roaming)
+                if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                    v.push(PathBuf::from(local).join("testagent"));
+                }
+
+                // 3. %APPDATA%\testagent  (roaming profile)
+                if let Ok(roaming) = std::env::var("APPDATA") {
+                    v.push(PathBuf::from(roaming).join("testagent"));
+                }
+
+                v
+            };
+
+            // Return the first candidate directory that actually exists and
+            // contains either an opencode.db file or a storage/ sub-directory.
+            for candidate in &candidates {
+                if candidate.exists()
+                    && (candidate.join("opencode.db").exists()
+                        || candidate.join("storage").exists())
+                {
+                    return Ok(candidate.clone());
+                }
             }
+
+            // Fall back to the first candidate that merely exists as a directory.
+            for candidate in &candidates {
+                if candidate.exists() {
+                    return Ok(candidate.clone());
+                }
+            }
+
+            // Last resort: XDG path even if it doesn't exist yet.
+            Ok(home.join(".local").join("share").join("testagent"))
         }
 
         #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
