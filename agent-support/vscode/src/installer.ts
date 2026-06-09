@@ -29,9 +29,6 @@ const execAsync = promisify(exec);
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-/** Minimum git-ai version shipped in the extension bundle. */
-const BUNDLED_VERSION = "1.0.0"; // updated at release time
-
 /** Where git-ai installs itself on Windows (same as install.ps1). */
 function getInstallDir(): string {
   return path.join(os.homedir(), ".git-ai", "bin");
@@ -117,7 +114,6 @@ function getBundledBinaryPath(context: vscode.ExtensionContext): string | null {
 
 /**
  * Returns true when git-ai needs to be (re-)installed.
- * Criteria: binary missing OR version below BUNDLED_VERSION.
  */
 async function installationRequired(): Promise<boolean> {
   const gitAiExe = path.join(getInstallDir(), "git-ai.exe");
@@ -135,14 +131,7 @@ async function installationRequired(): Promise<boolean> {
       console.log("[git-ai] installer: could not parse installed version – reinstalling");
       return true;
     }
-    const installed = match[1];
-    const needsUpgrade = compareVersions(installed, BUNDLED_VERSION) < 0;
-    if (needsUpgrade) {
-      console.log(
-        `[git-ai] installer: installed ${installed} < bundled ${BUNDLED_VERSION} – upgrade required`
-      );
-    }
-    return needsUpgrade;
+    return true;
   } catch {
     console.log("[git-ai] installer: could not run git-ai.exe – installation required");
     return true;
