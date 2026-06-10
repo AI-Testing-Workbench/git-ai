@@ -29,28 +29,33 @@ function findGitAi(): string | null {
   return null;
 }
 
-function killGitAiProcesses(): Promise<void> {
+function runCommand(cmd: string, description: string): Promise<void> {
   return new Promise((resolve) => {
-    log("Killing all running git-ai processes...");
-    exec(
-      'taskkill /F /IM git-ai.exe /T',
-      { timeout: 5000 },
-      (error, stdout, stderr) => {
-        if (error) {
-          if (error.code === 1) {
-            // Exit code 1 from taskkill means "no matching processes found" — expected if already dead
-            log("No running git-ai processes found to kill");
-          } else {
-            log(`taskkill error: ${error.message}`);
-            if (stderr) { log(stderr); }
-          }
-        } else {
-          log(stdout.trim());
-        }
-        resolve();
-      },
-    );
+    exec(cmd, { timeout: 5000 }, (error, stdout, stderr) => {
+      if (error) {
+        log(`${description} error (will continue): ${error.message}`);
+        if (stderr) { log(stderr); }
+      } else {
+        const out = stdout.trim();
+        if (out) { log(`${description}: ${out}`); }
+      }
+      resolve();
+    });
   });
+}
+
+function killGitAiProcesses(): Promise<void> {
+  log("Killing all running git-ai processes...");
+  // Use multiple approaches for maximum reliability on Windows 10:
+  //   1. taskkill /IM — standard approach, may fail in some Windows configurations
+  //   2. PowerShell Stop-Process — more robust, uses .NET Process.Kill() directly
+  return runCommand(
+    'taskkill /F /IM git-ai.exe /T 2>nul',
+    "taskkill",
+  ).then(() => runCommand(
+    'powershell -NoProfile -NonInteractive -Command "Get-Process git-ai -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue"',
+    "powershell Stop-Process",
+  ));
 }
 
 function runBgShutdown(gitAiPath: string): Promise<void> {
