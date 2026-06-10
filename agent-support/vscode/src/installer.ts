@@ -160,10 +160,7 @@ async function performInstall(
 
   // ── Step 3: Stop any running git-ai background service ─────────────────────
   progress.report({ message: "Stopping any running git-ai service…", increment: 5 });
-  await tryShutdownService(gitAiExe);
-
-  // Wait briefly for file handles to be released.
-  await sleep(500);
+  await tryShutdownService(gitAiExe, 8000);
 
   // ── Step 4: Copy bundled binary → git-ai.exe ───────────────────────────────
   progress.report({ message: "Installing git-ai.exe…", increment: 20 });
@@ -275,32 +272,75 @@ async function verifyGitUsable(gitPath: string): Promise<void> {
 /**
  * Attempt graceful (then forced) shutdown of the git-ai background service.
  * Mirrors install.ps1 Stop-GitAiBackgroundService() / Stop-GitAiManagedProcesses().
+ * After signalling shutdown, polls until the binary is no longer locked or timeout expires.
  */
-async function tryShutdownService(gitAiExe: string): Promise<void> {
+async function tryShutdownService(gitAiExe: string, maxWaitMs: number): Promise<void> {
   if (!fs.existsSync(gitAiExe)) {
     return;
   }
+
+  // Soft shutdown
   try {
     await execFileAsync(gitAiExe, ["bg", "shutdown"], { timeout: 5000 });
   } catch {
-    // ignore – process may already be gone
+    // soft shutdown failed – escalate to hard kill
+    try {
+      await execFileAsync(gitAiExe, ["bg", "shutdown", "--hard"], { timeout: 5000 });
+    } catch {
+      // ignore – process may already be gone
+    }
   }
+
+  // Poll until the file is no longer locked (daemon fully exited)
+  await waitForFileReleased(gitAiExe, maxWaitMs);
 }
 
 /**
- * Copy src → dest, retrying up to 3 times with a short delay.
- * Handles locked files (e.g., AV scanners briefly holding the exe).
+ * Polls until the target file can be opened for writing, or timeout expires.
+ * On Windows, this detects when a process has fully released its file handle.
+ */
+function waitForFileReleased(filePath: string, maxWaitMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + maxWaitMs;
+    const poll = (): void => {
+      if (Date.now() >= deadline) {
+        resolve();
+        return;
+      }
+      try {
+        // Attempt to open the file with write access – succeeds only when no
+        // other process holds an exclusive lock on the binary.
+        const fd = fs.openSync(filePath, fs.constants.O_WRONLY | fs.constants.O_DSYNC);
+        fs.closeSync(fd);
+        resolve();
+        return;
+      } catch {
+        // File still locked – poll again after a short delay.
+        setTimeout(poll, 200);
+      }
+    };
+    poll();
+  });
+}
+
+/**
+ * Copy src → dest, retrying with a longer total window.
+ * Handles locked files (e.g., daemon still releasing handles, AV scanners).
  */
 function copyFileSafe(src: string, dest: string): void {
+  const deadline = Date.now() + 8000;
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 30 && Date.now() < deadline; attempt++) {
     try {
       fs.copyFileSync(src, dest);
       return;
     } catch (err) {
       lastErr = err;
-      // Brief synchronous spin – acceptable here since we're inside withProgress.
-      const until = Date.now() + 200;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      // Asynchronous sleep – yields event loop to avoid blocking the VS Code UI.
+      const waitMs = Math.min(300, remaining);
+      const until = Date.now() + waitMs;
       while (Date.now() < until) {
         /* busy-wait */
       }
