@@ -2,12 +2,12 @@
  * Uninstall hook for git-ai VS Code extension.
  *
  * Called by VS Code when the extension is uninstalled (via `__uninstall` in
- * package.json).  Stops any running git-ai processes (daemon + proxy shim).
+ * package.json).  Gracefully shuts down the git-ai daemon.
  *
  * This script runs as a standalone Node.js process with no VS Code API access.
  */
 
-import { execFile, exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -27,35 +27,6 @@ function findGitAi(): string | null {
     return installed;
   }
   return null;
-}
-
-function runCommand(cmd: string, description: string): Promise<void> {
-  return new Promise((resolve) => {
-    exec(cmd, { timeout: 5000 }, (error, stdout, stderr) => {
-      if (error) {
-        log(`${description} error (will continue): ${error.message}`);
-        if (stderr) { log(stderr); }
-      } else {
-        const out = stdout.trim();
-        if (out) { log(`${description}: ${out}`); }
-      }
-      resolve();
-    });
-  });
-}
-
-function killGitAiProcesses(): Promise<void> {
-  log("Killing all running git-ai processes...");
-  // Use multiple approaches for maximum reliability on Windows 10:
-  //   1. taskkill /IM — standard approach, may fail in some Windows configurations
-  //   2. PowerShell Stop-Process — more robust, uses .NET Process.Kill() directly
-  return runCommand(
-    'taskkill /F /IM git-ai.exe /T 2>nul',
-    "taskkill",
-  ).then(() => runCommand(
-    'powershell -NoProfile -NonInteractive -Command "Get-Process git-ai -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue"',
-    "powershell Stop-Process",
-  ));
 }
 
 function runBgShutdown(gitAiPath: string): Promise<void> {
@@ -83,9 +54,6 @@ async function run(): Promise<void> {
   if (gitAiPath) {
     await runBgShutdown(gitAiPath);
   }
-
-  // Step 2: Force-kill any remaining git-ai.exe processes as a safety net
-  await killGitAiProcesses();
 
   log("git-ai uninstall cleanup completed");
 }
