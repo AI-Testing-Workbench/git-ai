@@ -42,7 +42,7 @@ function killGitAiProcesses(): Promise<void> {
             log("No running git-ai processes found to kill");
           } else {
             log(`taskkill error: ${error.message}`);
-            if (stderr) log(stderr);
+            if (stderr) { log(stderr); }
           }
         } else {
           log(stdout.trim());

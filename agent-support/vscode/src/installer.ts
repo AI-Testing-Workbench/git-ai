@@ -344,7 +344,7 @@ function copyFileSafe(src: string, dest: string): void {
     } catch (err) {
       lastErr = err;
       const remaining = deadline - Date.now();
-      if (remaining <= 0) break;
+      if (remaining <= 0) { break; }
       // Asynchronous sleep – yields event loop to avoid blocking the VS Code UI.
       const waitMs = Math.min(300, remaining);
       const until = Date.now() + waitMs;
