@@ -57,7 +57,8 @@ export async function runOfflineInstallIfNeeded(
   }
 
   // Check whether installation is required.
-  const needsInstall = await installationRequired();
+  const extensionVersion = context.extension.packageJSON.version as string;
+  const needsInstall = await installationRequired(extensionVersion);
   if (!needsInstall) {
     console.log("[git-ai] installer: git-ai is already installed and up-to-date");
     return;
@@ -72,7 +73,7 @@ export async function runOfflineInstallIfNeeded(
     },
     async (progress) => {
       try {
-        await performInstall(bundledExe, progress);
+        await performInstall(bundledExe, extensionVersion, progress);
         vscode.window.showInformationMessage(
           "git-ai installed successfully. Please restart your terminal and IDE for PATH changes to take effect."
         );
@@ -114,28 +115,27 @@ function getBundledBinaryPath(context: vscode.ExtensionContext): string | null {
 
 /**
  * Returns true when git-ai needs to be (re-)installed.
+ * Compares the last successfully installed extension version (persisted in
+ * ~/.git-ai/extension-version) against the currently running extension version.
  */
-async function installationRequired(): Promise<boolean> {
-  const gitAiExe = path.join(getInstallDir(), "git-ai.exe");
+async function installationRequired(expectedVersion: string): Promise<boolean> {
+  const versionFile = path.join(os.homedir(), ".git-ai", "extension-version");
 
-  if (!fs.existsSync(gitAiExe)) {
-    console.log("[git-ai] installer: git-ai.exe not found – installation required");
-    return true;
-  }
-
+  let installedVersion: string;
   try {
-    const { stdout } = await execFileAsync(gitAiExe, ["--version"], { timeout: 5000 });
-    const raw = stdout.trim();
-    const match = raw.match(/\b(\d+\.\d+\.\d+)\b/);
-    if (!match) {
-      console.log("[git-ai] installer: could not parse installed version – reinstalling");
-      return true;
-    }
-    return true;
+    installedVersion = fs.readFileSync(versionFile, "utf-8").trim();
   } catch {
-    console.log("[git-ai] installer: could not run git-ai.exe – installation required");
+    console.log("[git-ai] installer: no version marker found – installation required");
     return true;
   }
+
+  if (installedVersion === expectedVersion) {
+    console.log("[git-ai] installer: extension version match – no installation required");
+    return false;
+  }
+
+  console.log(`[git-ai] installer: extension version mismatch (installed=${installedVersion}, expected=${expectedVersion}) – reinstalling`);
+  return true;
 }
 
 /**
@@ -143,6 +143,7 @@ async function installationRequired(): Promise<boolean> {
  */
 async function performInstall(
   bundledExe: string,
+  extensionVersion: string,
   progress: vscode.Progress<{ message?: string; increment?: number }>
 ): Promise<void> {
   // ── Step 1: Detect standard git.exe ────────────────────────────────────────
@@ -191,7 +192,13 @@ async function performInstall(
   progress.report({ message: "Configuring Git Bash…", increment: 5 });
   configureGitBash(installDir);
 
-  progress.report({ message: "Done.", increment: 10 });
+  // ── Step 11: Persist extension version marker ──────────────────────────────
+  progress.report({ message: "Recording installed version…", increment: 5 });
+  const versionFile = path.join(os.homedir(), ".git-ai", "extension-version");
+  fs.mkdirSync(path.dirname(versionFile), { recursive: true });
+  fs.writeFileSync(versionFile, extensionVersion, { encoding: "utf8" });
+
+  progress.report({ message: "Done.", increment: 5 });
   console.log(`[git-ai] installer: installation complete → ${gitAiExe}`);
 }
 
